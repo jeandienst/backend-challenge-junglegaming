@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+    "strict": true, "noImplicitOverride": true, "noUncheckedIndexedAccess": true,
+    "experimentalDecorators": true, "emitDecoratorMetadata": true,
+    "esModuleInterop": true, "skipLibCheck": true, "outDir": "dist",
+    "types": ["bun", "node"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "mikro-orm.config.ts"]
+}

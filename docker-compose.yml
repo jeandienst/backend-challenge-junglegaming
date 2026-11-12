@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: wagering
+      POSTGRES_USER: wager
+      POSTGRES_PASSWORD: wager
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wager -d wagering"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+    ports: ["4566:4566"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4566/_localstack/health >/dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  queue-init:
+    image: amazon/aws-cli:2.17.45
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - ./infra/queue-init.sh:/queue-init.sh:ro
+    entrypoint: ["/bin/sh", "/queue-init.sh"]
+    depends_on:
+      localstack: { condition: service_healthy }
+  api:
+    image: oven/bun:1
+    working_dir: /app
+    command: sh -c "bun install && bun run migration:up && bun run start:dev"
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://wager:wager@postgres:5432/wagering
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_ENDPOINT: http://localstack:4566
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/wager-transactions.fifo
+      SQS_EVENTS_QUEUE_URL: http://localstack:4566/000000000000/wager-events.fifo
+      SQS_DLQ_QUEUE_URL: http://localstack:4566/000000000000/wager-transactions-dlq.fifo
+      PORT: 3000
+    ports: ["3000:3000"]
+    volumes:
+      - .:/app
+      - api-node-modules:/app/node_modules
+    depends_on:
+      postgres: { condition: service_healthy }
+      localstack: { condition: service_healthy }
+      queue-init: { condition: service_completed_successfully }
+volumes:
+  postgres-data:
+  api-node-modules:
